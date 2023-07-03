@@ -32,7 +32,10 @@ def create_fastapi_routes(backends, oauth, handle_authorize):
     :param handle_authorize: A function to handle authorized response
     :return: Fastapi APIRouter instance
     """
-    from fastapi import Request, APIRouter
+    from fastapi import (
+        APIRouter,
+        Request,
+    )
     from fastapi.exceptions import HTTPException
 
     router = APIRouter()
@@ -54,7 +57,7 @@ def create_fastapi_routes(backends, oauth, handle_authorize):
 
         if code:
             token = await remote.authorize_access_token(request)
-            if id_token:
+            if id_token and id_token != token.get("id_token"):
                 token["id_token"] = id_token
         elif id_token:
             token = {"id_token": id_token}
@@ -64,11 +67,14 @@ def create_fastapi_routes(backends, oauth, handle_authorize):
         else:
             # handle failed
             return await handle_authorize(remote, None, None)
-        if "id_token" in token:
-            user_info = await remote.parse_id_token(request, token)
-        else:
-            remote.token = token
-            user_info = await remote.userinfo(token=token)
+        
+        user_info = token.get('userinfo')
+        if not user_info:
+            if "id_token" in token:
+                user_info = await remote.parse_id_token(request, token)
+            else:
+                remote.token = token
+                user_info = await remote.userinfo(token=token)
         return await handle_authorize(remote, token, user_info, request)
 
     @router.get("/login/{backend}")
@@ -80,15 +86,16 @@ def create_fastapi_routes(backends, oauth, handle_authorize):
         redirect_uri = request.url_for("auth", backend=backend)
         conf_key = "{}_AUTHORIZE_PARAMS".format(backend.upper())
         params = oauth.config.get(conf_key, default={})
+        params=dict()
         return await remote.authorize_redirect(request, redirect_uri, **params)
 
     return router
 
 
 def register_to(oauth, backend_cls):
-    from authlib.integrations.starlette_client import StarletteRemoteApp
+    from authlib.integrations.starlette_client import StarletteOAuth2App
 
-    class RemoteApp(backend_cls, StarletteRemoteApp):
+    class RemoteApp(backend_cls, StarletteOAuth2App):
         OAUTH_APP_CONFIG = backend_cls.OAUTH_CONFIG
 
     oauth.register(RemoteApp.NAME, overwrite=True, client_cls=RemoteApp)
