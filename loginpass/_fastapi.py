@@ -1,4 +1,3 @@
-
 def create_fastapi_routes(backends, oauth, handle_authorize):
     """Create a Fastapi routes that you can register it directly to fastapi
     app. The routes contains two route: ``/auth/<backend>`` and
@@ -66,9 +65,9 @@ def create_fastapi_routes(backends, oauth, handle_authorize):
             token = await remote.authorize_access_token(request)
         else:
             # handle failed
-            return await handle_authorize(remote, None, None)
-        
-        user_info = token.get('userinfo')
+            return await handle_authorize(remote, None, None, None)
+
+        user_info = token.get("userinfo")
         if not user_info:
             if "id_token" in token:
                 user_info = await remote.parse_id_token(request, token)
@@ -86,7 +85,7 @@ def create_fastapi_routes(backends, oauth, handle_authorize):
         redirect_uri = request.url_for("auth", backend=backend)
         conf_key = "{}_AUTHORIZE_PARAMS".format(backend.upper())
         params = oauth.config.get(conf_key, default={})
-        params=dict()
+        params = dict()
         return await remote.authorize_redirect(request, redirect_uri, **params)
 
     return router
